@@ -386,6 +386,12 @@
       cursor: pointer;
     }
 
+    @media (min-width: 1920px) {
+      :root {
+        --columns: 6;
+      }
+    }
+
     @media (max-width: 1024px) {
       :root {
         --columns: 2;
@@ -496,12 +502,14 @@
       let COLS = 4;
       let currentRows = DEFAULT_ROWS;
 
+      const mqlUltraWide = window.matchMedia('(min-width: 1920px)');
       const mqlTablet = window.matchMedia('(max-width: 1024px)');
       const mqlMobile = window.matchMedia('(max-width: 640px)');
 
       function getResponsiveCols() {
         if (mqlMobile.matches) return 1;
         if (mqlTablet.matches) return 2;
+        if (mqlUltraWide.matches) return 6;
         return 4;
       }
 
@@ -520,6 +528,7 @@
         reflowCards();
       }
 
+      mqlUltraWide.addEventListener('change', applyBreakpoint);
       mqlTablet.addEventListener('change', applyBreakpoint);
       mqlMobile.addEventListener('change', applyBreakpoint);
 
