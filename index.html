@@ -415,6 +415,20 @@
         --columns: 1;
       }
     }
+
+    /* Disable drag/resize affordances on touch devices */
+    .touch-device .grid-live > .grid-stack-item {
+      cursor: default;
+    }
+
+    .touch-device .resize-edge {
+      display: none !important;
+    }
+
+    .touch-device .grid-live > .grid-stack-item > .grid-stack-item-content:hover {
+      border: 0.5px solid var(--color-neutral-200, #E5E5E5);
+      box-shadow: 0 0.5px 2px 0 rgba(0, 0, 0, 0.10);
+    }
   </style>
 </head>
 <body>
@@ -494,6 +508,14 @@
     }, '.grid-live');
 
     (function() {
+      const isTouchDevice = 'ontouchstart' in window
+        || navigator.maxTouchPoints > 0
+        || matchMedia('(pointer: coarse)').matches;
+
+      if (isTouchDevice) {
+        document.documentElement.classList.add('touch-device');
+      }
+
       const gridEl = document.querySelector('.grid-live');
       const gridFrame = document.querySelector('.grid-frame');
       const verticalResizeCheckbox = document.getElementById('verticalResize');
@@ -943,6 +965,7 @@
       // --- Unified pointer handling ---
       gridEl.addEventListener('pointerdown', function(e) {
         if (e.target.closest('.card-action-btn')) return;
+        if (isTouchDevice) return;
 
         // Resize edge takes priority
         const edge = e.target.closest('.resize-edge');
