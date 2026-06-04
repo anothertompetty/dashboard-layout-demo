@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GridStack Wireframe</title>
+  <link
+    rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/gridstack@12.3.3/dist/gridstack.min.css"
+  />
+  <link
+    rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/geist@1.3.1/dist/fonts/geist-sans/style.min.css"
+  />
+  <style>
+    :root {
+      --page-bg: #ffffff;
+      --border: #d9d9d9;
+      --border-soft: #ececec;
+      --text: #7a7a7a;
+      --row-height: 364px;
+      --cell-margin: 8px;
+      --gap: 16px;
+      --columns: 4;
+      --rows: 3;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      padding: 24px;
+      background: var(--page-bg);
+      color: var(--text);
+      font-family: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+    }
+
+    .page {
+      width: 100%;
+    }
+
+    .page-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 24px;
+    }
+
+    .title {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #8a8a8a;
+    }
+
+    .meta {
+      margin: 6px 0 0;
+      font-size: 13px;
+      color: #a3a3a3;
+    }
+
+    .grid-frame {
+      position: relative;
+      min-height: calc(
+        (var(--row-height) * var(--rows))
+        + (var(--gap) * (var(--rows) - 1))
+      );
+      border: 1px solid var(--border-soft);
+      background: #fff;
+      overflow: hidden;
+    }
+
+    .grid-layer {
+      position: absolute;
+      inset: calc(-1 * var(--cell-margin));
+    }
+
+    .grid-guides {
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    .grid-live {
+      z-index: 1;
+      background: transparent;
+    }
+
+    .grid-live > .grid-stack-item {
+      overflow: visible;
+    }
+
+    .grid-guides > .grid-stack-item > .grid-stack-item-content {
+      border: 1px dotted rgba(0, 0, 0, 0.06);
+      background:
+        radial-gradient(circle at 1px 1px, rgba(0, 0, 0, 0.04) 1px, transparent 0);
+      background-size: 12px 12px;
+      background-position: center;
+    }
+
+    .grid-live > .grid-stack-item > .grid-stack-item-content {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      padding: 12px;
+      border-radius: var(--radius-lg, 9px);
+      border: 0.5px solid var(--color-neutral-200, #E5E5E5);
+      background: var(--color-white, #FFF);
+      box-shadow: 0 0.5px 2px 0 rgba(0, 0, 0, 0.10);
+      font-family: 'Geist Sans', 'Geist', 'Inter', system-ui, sans-serif;
+      font-size: 13px;
+      overflow: visible;
+      transition: border 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .grid-live > .grid-stack-item > .grid-stack-item-content:hover {
+      border: var(--border-width-1, 1px) solid var(--color-blue-600, #155DFC);
+      box-shadow: 0 3px 4px 0 rgba(0, 0, 0, 0.07), 0 0.5px 2px 0 rgba(0, 0, 0, 0.10);
+    }
+
+    /* Card header */
+    .card-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      width: 100%;
+    }
+
+    .card-title {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .card-title-text {
+      margin: 0;
+      font-size: 13px;
+      font-weight: 500;
+      line-height: 20px;
+      color: var(--color-neutral-900, #171717);
+      font-feature-settings: 'lnum' 1, 'tnum' 1;
+    }
+
+    .card-subtitle {
+      margin: 0;
+      font-size: 13px;
+      font-weight: 400;
+      line-height: 20px;
+      color: var(--color-neutral-500, #737373);
+      font-feature-settings: 'lnum' 1, 'tnum' 1;
+    }
+
+    /* Card actions (visible on hover) */
+    .card-actions {
+      display: flex;
+      align-items: center;
+      opacity: 0;
+      transition: opacity 0.15s ease;
+    }
+
+    .grid-stack-item-content:hover .card-actions {
+      opacity: 1;
+    }
+
+    .card-action-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      border: none;
+      background: none;
+      border-radius: var(--radius-md, 6px);
+      cursor: pointer;
+      color: var(--color-neutral-500, #737373);
+      padding: 0;
+    }
+
+    .card-action-btn:hover {
+      background: var(--color-neutral-100, #f5f5f5);
+    }
+
+    .card-action-btn svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    /* Insight content area */
+    .card-insight {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      flex: 1;
+      width: 100%;
+      min-height: 0;
+      border-radius: var(--radius-lg, 9px);
+      padding: 20px;
+    }
+
+    .card-insight-metric {
+      margin: 0;
+      font-size: 30px;
+      font-weight: 500;
+      line-height: 36px;
+      font-feature-settings: 'lnum' 1, 'tnum' 1;
+    }
+
+    /* Side resize edge zones */
+    .resize-edge {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 12px;
+      cursor: col-resize;
+      z-index: 10;
+      opacity: 0;
+      transition: opacity 0.15s ease;
+    }
+
+    .resize-edge-left {
+      left: -6px;
+    }
+
+    .resize-edge-right {
+      right: -6px;
+    }
+
+    .grid-stack-item-content:hover > .resize-edge {
+      opacity: 1;
+    }
+
+    .resize-edge::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 4px;
+      height: 32px;
+      border-radius: 2px;
+      background: var(--color-blue-600, #155DFC);
+      transition: opacity 0.15s ease;
+    }
+
+    .grid-live .grid-stack-item.resizing > .grid-stack-item-content {
+      border-color: var(--color-blue-600, #155DFC);
+    }
+
+    /* Drag-and-drop styles */
+    .grid-live > .grid-stack-item {
+      cursor: grab;
+    }
+
+    .grid-live > .grid-stack-item.dragging {
+      opacity: 0.4;
+      cursor: grabbing;
+    }
+
+    .grid-live > .grid-stack-item.drop-target > .grid-stack-item-content {
+      border: 1.5px dashed var(--color-blue-600, #155DFC);
+      background: rgba(21, 93, 252, 0.03);
+    }
+
+    .drag-ghost {
+      position: fixed;
+      pointer-events: none;
+      z-index: 9999;
+      opacity: 0.85;
+      border-radius: var(--radius-lg, 9px);
+      box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15), 0 4px 8px rgba(0, 0, 0, 0.1);
+      cursor: grabbing;
+      transition: none;
+    }
+
+    /* Hide native GridStack resize handles */
+    .grid-live .ui-resizable-handle,
+    .grid-live .gs-resizable-handle {
+      display: none !important;
+    }
+
+    .grid-stack-placeholder > .placeholder-content {
+      border: 1px dashed #cfcfcf;
+      background: rgba(245, 245, 245, 0.6);
+    }
+
+    .btn-reset {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 10px;
+      font-size: 12px;
+      font-weight: 500;
+      font-family: inherit;
+      color: var(--color-neutral-500, #737373);
+      background: var(--color-neutral-50, #fafafa);
+      border: 1px solid var(--color-neutral-200, #e5e5e5);
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+
+    .btn-reset:hover {
+      background: var(--color-neutral-100, #f5f5f5);
+      color: var(--color-neutral-700, #404040);
+    }
+
+    .btn-reset svg {
+      width: 12px;
+      height: 12px;
+    }
+
+    @media (max-width: 720px) {
+      body {
+        padding: 24px;
+      }
+
+      .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+        margin-bottom: 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="page-header">
+      <div>
+        <h1 class="title">GridStack Wireframe</h1>
+        <p class="meta">4 responsive columns, 3 fixed rows, 364px row height, 16px gutters.</p>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <button class="btn-reset" id="addNarrow" aria-label="Add narrow card">
+          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="7" y1="3" x2="7" y2="11"/><line x1="3" y1="7" x2="11" y2="7"/></svg>
+          Add narrow
+        </button>
+        <button class="btn-reset" id="addWide" aria-label="Add wide card">
+          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="7" y1="3" x2="7" y2="11"/><line x1="3" y1="7" x2="11" y2="7"/></svg>
+          Add wide
+        </button>
+        <button class="btn-reset" id="resetLayout" aria-label="Reset layout">
+          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 2.5v4h4"/><path d="M2.09 9a5.5 5.5 0 1 0 .46-5.5L1.5 6.5"/></svg>
+          Reset layout
+        </button>
+      </div>
+    </header>
+
+    <section class="grid-frame" aria-label="Dashboard prototype grid">
+      <div class="grid-stack grid-layer grid-guides" aria-hidden="true">
+        <div class="grid-stack-item" gs-x="0" gs-y="0" gs-w="1" gs-h="1"><div class="grid-stack-item-content"></div></div>
+        <div class="grid-stack-item" gs-x="1" gs-y="0" gs-w="1" gs-h="1"><div class="grid-stack-item-content"></div></div>
+        <div class="grid-stack-item" gs-x="2" gs-y="0" gs-w="1" gs-h="1"><div class="grid-stack-item-content"></div></div>
+        <div class="grid-stack-item" gs-x="3" gs-y="0" gs-w="1" gs-h="1"><div class="grid-stack-item-content"></div></div>
+        <div class="grid-stack-item" gs-x="0" gs-y="1" gs-w="1" gs-h="1"><div class="grid-stack-item-content"></div></div>
+        <div class="grid-stack-item" gs-x="1" gs-y="1" gs-w="1" gs-h="1"><div class="grid-stack-item-content"></div></div>
+        <div class="grid-stack-item" gs-x="2" gs-y="1" gs-w="1" gs-h="1"><div class="grid-stack-item-content"></div></div>
+        <div class="grid-stack-item" gs-x="3" gs-y="1" gs-w="1" gs-h="1"><div class="grid-stack-item-content"></div></div>
+        <div class="grid-stack-item" gs-x="0" gs-y="2" gs-w="1" gs-h="1"><div class="grid-stack-item-content"></div></div>
+        <div class="grid-stack-item" gs-x="1" gs-y="2" gs-w="1" gs-h="1"><div class="grid-stack-item-content"></div></div>
+        <div class="grid-stack-item" gs-x="2" gs-y="2" gs-w="1" gs-h="1"><div class="grid-stack-item-content"></div></div>
+        <div class="grid-stack-item" gs-x="3" gs-y="2" gs-w="1" gs-h="1"><div class="grid-stack-item-content"></div></div>
+      </div>
+
+      <div class="grid-stack grid-layer grid-live">
+      </div>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/gridstack@12.3.3/dist/gridstack-all.js"></script>
+  <script>
+    GridStack.init({
+      column: 4,
+      cellHeight: 364,
+      margin: 8,
+      minRow: 3,
+      maxRow: 3,
+      staticGrid: true,
+      disableDrag: true,
+      disableResize: true,
+      float: true,
+      animate: false
+    }, '.grid-guides');
+
+    const liveGrid = GridStack.init({
+      column: 4,
+      cellHeight: 364,
+      margin: 8,
+      minRow: 3,
+      maxRow: 3,
+      float: true,
+      animate: true,
+      disableResize: true,
+      disableDrag: true
+    }, '.grid-live');
+
+    (function() {
+      const gridEl = document.querySelector('.grid-live');
+      const COLS = 4;
+      const DRAG_THRESHOLD = 5;
+
+      let cardOrder = [];
+
+      const cardTemplates = [
+        { title: 'Open risky vulnerabilities', subtitle: '127 Total', metric: '25', bg: 'var(--color-rose-50, #fff1f2)', color: 'var(--color-rose-700, #c70036)' },
+        { title: 'Expired certificates', subtitle: '84 Total', metric: '12', bg: 'var(--color-amber-50, #fffbeb)', color: 'var(--color-amber-700, #b45309)' },
+        { title: 'Misconfigured assets', subtitle: '53 Total', metric: '8', bg: 'var(--color-violet-50, #f5f3ff)', color: 'var(--color-violet-700, #6d28d9)' },
+        { title: 'Unpatched endpoints', subtitle: '219 Total', metric: '42', bg: 'var(--color-sky-50, #f0f9ff)', color: 'var(--color-sky-700, #0369a1)' },
+        { title: 'Failed login attempts', subtitle: '1,042 Total', metric: '318', bg: 'var(--color-emerald-50, #ecfdf5)', color: 'var(--color-emerald-700, #047857)' },
+        { title: 'Shadow IT services', subtitle: '67 Total', metric: '19', bg: 'var(--color-orange-50, #fff7ed)', color: 'var(--color-orange-700, #c2410c)' },
+      ];
+      let templateIdx = 0;
+
+      function makeCardHTML(t) {
+        return '<div class="card-header">' +
+          '<div class="card-title">' +
+            '<p class="card-title-text">' + t.title + '</p>' +
+            '<p class="card-subtitle">' + t.subtitle + '</p>' +
+          '</div>' +
+          '<div class="card-actions">' +
+            '<button class="card-action-btn" aria-label="Close">' +
+              '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="3" y1="3" x2="11" y2="11"/><line x1="11" y1="3" x2="3" y2="11"/></svg>' +
+            '</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="card-insight" style="background: ' + t.bg + ';">' +
+          '<p class="card-insight-metric" style="color: ' + t.color + ';">' + t.metric + '</p>' +
+        '</div>' +
+        '<div class="resize-edge resize-edge-left" data-resize="left"></div>' +
+        '<div class="resize-edge resize-edge-right" data-resize="right"></div>';
+      }
+
+      function addCard(w) {
+        const t = cardTemplates[templateIdx % cardTemplates.length];
+        templateIdx++;
+        const el = document.createElement('div');
+        el.className = 'grid-stack-item';
+        el.setAttribute('gs-w', w);
+        el.setAttribute('gs-h', '1');
+        const content = document.createElement('div');
+        content.className = 'grid-stack-item-content';
+        content.innerHTML = makeCardHTML(t);
+        el.appendChild(content);
+        liveGrid.addWidget(el);
+        cardOrder.push(el);
+        reflowCards();
+      }
+
+      document.getElementById('addNarrow').addEventListener('click', function() { addCard(1); });
+      document.getElementById('addWide').addEventListener('click', function() { addCard(2); });
+
+      function reflowCards() {
+        let x = 0;
+        let y = 0;
+
+        liveGrid.batchUpdate();
+        for (const item of cardOrder) {
+          const w = parseInt(item.getAttribute('gs-w')) || 1;
+          if (x + w > COLS) {
+            x = 0;
+            y += 1;
+          }
+          liveGrid.update(item, { x: x, y: y, w: w });
+          x += w;
+        }
+        liveGrid.batchUpdate(false);
+      }
+
+      reflowCards();
+
+      // --- Resize logic ---
+      let resizing = false;
+      let resizeEdge = null;
+      let resizeItem = null;
+      let resizeStartX = 0;
+      let resizeStartW = 0;
+      let colWidth = 0;
+
+      function getColWidth() {
+        return gridEl.offsetWidth / COLS;
+      }
+
+      // --- Drag-to-reorder logic ---
+      let dragState = null; // { item, startX, startY, ghost, active, pointerId }
+      let currentDropTarget = null;
+
+      function createGhost(item, x, y) {
+        const rect = item.querySelector('.grid-stack-item-content').getBoundingClientRect();
+        const ghost = item.querySelector('.grid-stack-item-content').cloneNode(true);
+        ghost.className = 'drag-ghost';
+        ghost.style.width = rect.width + 'px';
+        ghost.style.height = rect.height + 'px';
+        ghost.style.left = (rect.left) + 'px';
+        ghost.style.top = (rect.top) + 'px';
+        document.body.appendChild(ghost);
+        return { el: ghost, offsetX: x - rect.left, offsetY: y - rect.top };
+      }
+
+      function moveGhost(ghost, x, y) {
+        ghost.el.style.left = (x - ghost.offsetX) + 'px';
+        ghost.el.style.top = (y - ghost.offsetY) + 'px';
+      }
+
+      function removeGhost(ghost) {
+        if (ghost && ghost.el && ghost.el.parentNode) {
+          ghost.el.parentNode.removeChild(ghost.el);
+        }
+      }
+
+      function getDropTarget(x, y, draggedItem) {
+        const els = document.elementsFromPoint(x, y);
+        for (const el of els) {
+          const item = el.closest('.grid-stack-item');
+          if (item && item !== draggedItem && cardOrder.includes(item)) {
+            return item;
+          }
+        }
+        return null;
+      }
+
+      function clearDropTarget() {
+        if (currentDropTarget) {
+          currentDropTarget.classList.remove('drop-target');
+          currentDropTarget = null;
+        }
+      }
+
+      // --- Close button ---
+      gridEl.addEventListener('click', function(e) {
+        const btn = e.target.closest('.card-action-btn');
+        if (!btn) return;
+        const item = btn.closest('.grid-stack-item');
+        if (!item) return;
+        const idx = cardOrder.indexOf(item);
+        if (idx !== -1) cardOrder.splice(idx, 1);
+        liveGrid.removeWidget(item);
+        reflowCards();
+      });
+
+      // --- Reset layout ---
+      document.getElementById('resetLayout').addEventListener('click', function() {
+        liveGrid.removeAll();
+        cardOrder = [];
+        templateIdx = 0;
+      });
+
+      // --- Unified pointer handling ---
+      gridEl.addEventListener('pointerdown', function(e) {
+        if (e.target.closest('.card-action-btn')) return;
+
+        // Resize edge takes priority
+        const edge = e.target.closest('.resize-edge');
+        if (edge) {
+          e.preventDefault();
+          e.stopPropagation();
+          edge.setPointerCapture(e.pointerId);
+
+          resizeItem = edge.closest('.grid-stack-item');
+          resizeEdge = edge.dataset.resize;
+          resizeStartX = e.clientX;
+          resizeStartW = parseInt(resizeItem.getAttribute('gs-w')) || 1;
+          colWidth = getColWidth();
+          resizing = true;
+
+          resizeItem.classList.add('resizing');
+          return;
+        }
+
+        // Card drag
+        const item = e.target.closest('.grid-stack-item');
+        if (!item || !cardOrder.includes(item)) return;
+
+        e.preventDefault();
+        dragState = {
+          item: item,
+          startX: e.clientX,
+          startY: e.clientY,
+          ghost: null,
+          active: false,
+          pointerId: e.pointerId
+        };
+      });
+
+      document.addEventListener('pointermove', function(e) {
+        // Resize
+        if (resizing) {
+          e.preventDefault();
+          const dx = e.clientX - resizeStartX;
+          const colDelta = Math.round(dx / colWidth);
+          let newW;
+          if (resizeEdge === 'right') {
+            newW = Math.max(1, Math.min(COLS, resizeStartW + colDelta));
+          } else {
+            newW = Math.max(1, Math.min(COLS, resizeStartW - colDelta));
+          }
+          resizeItem.setAttribute('gs-w', newW);
+          reflowCards();
+          return;
+        }
+
+        // Drag
+        if (!dragState) return;
+
+        const dx = e.clientX - dragState.startX;
+        const dy = e.clientY - dragState.startY;
+
+        if (!dragState.active) {
+          if (Math.abs(dx) < DRAG_THRESHOLD && Math.abs(dy) < DRAG_THRESHOLD) return;
+          dragState.active = true;
+          dragState.ghost = createGhost(dragState.item, dragState.startX, dragState.startY);
+          dragState.item.classList.add('dragging');
+        }
+
+        moveGhost(dragState.ghost, e.clientX, e.clientY);
+
+        // Determine drop target
+        const target = getDropTarget(e.clientX, e.clientY, dragState.item);
+        if (target !== currentDropTarget) {
+          clearDropTarget();
+          if (target) {
+            target.classList.add('drop-target');
+            currentDropTarget = target;
+          }
+        }
+      });
+
+      document.addEventListener('pointerup', function(e) {
+        // Resize end
+        if (resizing) {
+          resizing = false;
+          if (resizeItem) resizeItem.classList.remove('resizing');
+          resizeItem = null;
+          resizeEdge = null;
+          return;
+        }
+
+        // Drag end
+        if (!dragState) return;
+
+        if (dragState.active) {
+          removeGhost(dragState.ghost);
+          dragState.item.classList.remove('dragging');
+
+          // Reorder if dropped on a valid card
+          if (currentDropTarget) {
+            const fromIdx = cardOrder.indexOf(dragState.item);
+            const toIdx = cardOrder.indexOf(currentDropTarget);
+            cardOrder.splice(fromIdx, 1);
+            cardOrder.splice(toIdx, 0, dragState.item);
+            reflowCards();
+          }
+
+          clearDropTarget();
+        }
+
+        dragState = null;
+      });
+    })();
+  </script>
+</body>
+</html>
