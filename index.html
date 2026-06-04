@@ -386,6 +386,12 @@
       cursor: pointer;
     }
 
+    @media (max-width: 1024px) {
+      :root {
+        --columns: 2;
+      }
+    }
+
     @media (max-width: 720px) {
       body {
         padding: 24px;
@@ -395,6 +401,12 @@
         flex-direction: column;
         align-items: flex-start;
         margin-bottom: 20px;
+      }
+    }
+
+    @media (max-width: 640px) {
+      :root {
+        --columns: 1;
       }
     }
   </style>
@@ -479,10 +491,46 @@
       const gridEl = document.querySelector('.grid-live');
       const gridFrame = document.querySelector('.grid-frame');
       const verticalResizeCheckbox = document.getElementById('verticalResize');
-      const COLS = 4;
       const DRAG_THRESHOLD = 5;
       const DEFAULT_ROWS = 3;
+      let COLS = 4;
       let currentRows = DEFAULT_ROWS;
+
+      const mqlTablet = window.matchMedia('(max-width: 1024px)');
+      const mqlMobile = window.matchMedia('(max-width: 640px)');
+
+      function getResponsiveCols() {
+        if (mqlMobile.matches) return 1;
+        if (mqlTablet.matches) return 2;
+        return 4;
+      }
+
+      function applyBreakpoint() {
+        const newCols = getResponsiveCols();
+        if (newCols === COLS) return;
+        COLS = newCols;
+        document.documentElement.style.setProperty('--columns', COLS);
+        guideGrid.column(COLS);
+        liveGrid.column(COLS);
+        for (const item of cardOrder) {
+          const w = parseInt(item.getAttribute('gs-w')) || 1;
+          if (COLS === 1 || w > COLS) item.setAttribute('gs-w', COLS);
+        }
+        rebuildGuides();
+        reflowCards();
+      }
+
+      mqlTablet.addEventListener('change', applyBreakpoint);
+      mqlMobile.addEventListener('change', applyBreakpoint);
+
+      const initialCols = getResponsiveCols();
+      if (initialCols !== COLS) {
+        COLS = initialCols;
+        document.documentElement.style.setProperty('--columns', COLS);
+        guideGrid.column(COLS);
+        liveGrid.column(COLS);
+        rebuildGuides();
+      }
 
       let verticalResizeEnabled = false;
 
@@ -534,6 +582,8 @@
       }
 
       function addCard(w) {
+        if (COLS === 1) w = 1;
+        else w = Math.min(w, COLS);
         const t = cardTemplates[templateIdx % cardTemplates.length];
         templateIdx++;
         const el = document.createElement('div');
