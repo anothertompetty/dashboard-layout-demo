@@ -633,6 +633,20 @@
           x += w;
         }
 
+        if (COLS < 4) {
+          var lastOnRow = {};
+          for (var i = 0; i < placements.length; i++) {
+            lastOnRow[placements[i].y] = i;
+          }
+          for (var row in lastOnRow) {
+            var p = placements[lastOnRow[row]];
+            var endCol = p.x + p.w;
+            if (endCol < COLS) {
+              p.w = COLS - p.x;
+            }
+          }
+        }
+
         var requiredRows = DEFAULT_ROWS;
         for (var i = 0; i < placements.length; i++) {
           requiredRows = Math.max(requiredRows, placements[i].y + placements[i].h);
