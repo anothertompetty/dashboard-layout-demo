@@ -450,12 +450,12 @@
 
   <script src="https://cdn.jsdelivr.net/npm/gridstack@12.3.3/dist/gridstack-all.js"></script>
   <script>
-    GridStack.init({
+    const guideGrid = GridStack.init({
       column: 4,
       cellHeight: 364,
       margin: 8,
       minRow: 3,
-      maxRow: 3,
+      maxRow: 0,
       staticGrid: true,
       disableDrag: true,
       disableResize: true,
@@ -468,7 +468,7 @@
       cellHeight: 364,
       margin: 8,
       minRow: 3,
-      maxRow: 3,
+      maxRow: 0,
       float: true,
       animate: true,
       disableResize: true,
@@ -481,7 +481,8 @@
       const verticalResizeCheckbox = document.getElementById('verticalResize');
       const COLS = 4;
       const DRAG_THRESHOLD = 5;
-      const ROWS = 3;
+      const DEFAULT_ROWS = 3;
+      let currentRows = DEFAULT_ROWS;
 
       let verticalResizeEnabled = false;
 
@@ -551,72 +552,107 @@
       document.getElementById('addNarrow').addEventListener('click', function() { addCard(1); });
       document.getElementById('addWide').addEventListener('click', function() { addCard(2); });
 
+      function updateGridSize(requiredRows) {
+        var rows = Math.max(DEFAULT_ROWS, requiredRows);
+        if (rows === currentRows) return;
+        currentRows = rows;
+        document.documentElement.style.setProperty('--rows', currentRows);
+        rebuildGuides();
+      }
+
+      function rebuildGuides() {
+        guideGrid.removeAll();
+        for (var y = 0; y < currentRows; y++) {
+          for (var x = 0; x < COLS; x++) {
+            guideGrid.addWidget({ x: x, y: y, w: 1, h: 1 });
+          }
+        }
+      }
+
       function reflowCards() {
         if (verticalResizeEnabled) {
           reflowCards2D();
           return;
         }
-        let x = 0;
-        let y = 0;
+        var placements = [];
+        var x = 0, y = 0;
+        for (const item of cardOrder) {
+          var w = parseInt(item.getAttribute('gs-w')) || 1;
+          if (x + w > COLS) { x = 0; y += 1; }
+          placements.push({ item: item, x: x, y: y, w: w, h: 1 });
+          x += w;
+        }
+
+        var requiredRows = DEFAULT_ROWS;
+        for (var i = 0; i < placements.length; i++) {
+          requiredRows = Math.max(requiredRows, placements[i].y + placements[i].h);
+        }
+        updateGridSize(requiredRows);
 
         liveGrid.batchUpdate();
-        for (const item of cardOrder) {
-          const w = parseInt(item.getAttribute('gs-w')) || 1;
-          if (x + w > COLS) {
-            x = 0;
-            y += 1;
-          }
-          liveGrid.update(item, { x: x, y: y, w: w, h: 1 });
-          x += w;
+        for (var i = 0; i < placements.length; i++) {
+          var p = placements[i];
+          liveGrid.update(p.item, { x: p.x, y: p.y, w: p.w, h: p.h });
         }
         liveGrid.batchUpdate(false);
       }
 
       function reflowCards2D() {
-        // 2D grid occupancy map
+        var maxNeeded = DEFAULT_ROWS;
+        for (const item of cardOrder) {
+          maxNeeded += parseInt(item.getAttribute('gs-h')) || 1;
+        }
+
         var grid = [];
-        for (var r = 0; r < ROWS; r++) {
+        for (var r = 0; r < maxNeeded; r++) {
           grid[r] = [];
           for (var c = 0; c < COLS; c++) grid[r][c] = false;
         }
 
         function fits(gx, gy, w, h) {
-          if (gx + w > COLS || gy + h > ROWS) return false;
-          for (var dy = 0; dy < h; dy++) {
-            for (var dx = 0; dx < w; dx++) {
+          if (gx + w > COLS || gy + h > maxNeeded) return false;
+          for (var dy = 0; dy < h; dy++)
+            for (var dx = 0; dx < w; dx++)
               if (grid[gy + dy][gx + dx]) return false;
-            }
-          }
           return true;
         }
 
-        function place(gx, gy, w, h) {
-          for (var dy = 0; dy < h; dy++) {
-            for (var dx = 0; dx < w; dx++) {
+        function mark(gx, gy, w, h) {
+          for (var dy = 0; dy < h; dy++)
+            for (var dx = 0; dx < w; dx++)
               grid[gy + dy][gx + dx] = true;
-            }
-          }
         }
 
-        liveGrid.batchUpdate();
+        var placements = [];
         for (const item of cardOrder) {
           var w = parseInt(item.getAttribute('gs-w')) || 1;
           var h = parseInt(item.getAttribute('gs-h')) || 1;
           w = Math.min(w, COLS);
-          h = Math.min(h, ROWS);
           var placed = false;
-          for (var gy = 0; gy < ROWS && !placed; gy++) {
+          for (var gy = 0; gy < maxNeeded && !placed; gy++) {
             for (var gx = 0; gx < COLS && !placed; gx++) {
               if (fits(gx, gy, w, h)) {
-                liveGrid.update(item, { x: gx, y: gy, w: w, h: h });
-                place(gx, gy, w, h);
+                placements.push({ item: item, x: gx, y: gy, w: w, h: h });
+                mark(gx, gy, w, h);
                 placed = true;
               }
             }
           }
           if (!placed) {
-            liveGrid.update(item, { x: 0, y: 0, w: w, h: h });
+            placements.push({ item: item, x: 0, y: 0, w: w, h: h });
           }
+        }
+
+        var requiredRows = DEFAULT_ROWS;
+        for (var i = 0; i < placements.length; i++) {
+          requiredRows = Math.max(requiredRows, placements[i].y + placements[i].h);
+        }
+        updateGridSize(requiredRows);
+
+        liveGrid.batchUpdate();
+        for (var i = 0; i < placements.length; i++) {
+          var p = placements[i];
+          liveGrid.update(p.item, { x: p.x, y: p.y, w: p.w, h: p.h });
         }
         liveGrid.batchUpdate(false);
       }
@@ -639,7 +675,7 @@
       }
 
       function getRowHeight() {
-        return gridEl.offsetHeight / ROWS;
+        return gridEl.offsetHeight / currentRows;
       }
 
       // --- Drag-to-reorder logic ---
@@ -692,9 +728,8 @@
       function getOccupiedCells() {
         var occupied = {};
         if (verticalResizeEnabled) {
-          // Use 2D packing to compute positions
           var grid = [];
-          for (var r = 0; r < ROWS; r++) {
+          for (var r = 0; r < currentRows; r++) {
             grid[r] = [];
             for (var c = 0; c < COLS; c++) grid[r][c] = false;
           }
@@ -702,12 +737,11 @@
             var cw = parseInt(cardOrder[ci].getAttribute('gs-w')) || 1;
             var ch = parseInt(cardOrder[ci].getAttribute('gs-h')) || 1;
             cw = Math.min(cw, COLS);
-            ch = Math.min(ch, ROWS);
-            for (var gy = 0; gy < ROWS; gy++) {
+            for (var gy = 0; gy < currentRows; gy++) {
               var found = false;
               for (var gx = 0; gx < COLS; gx++) {
                 var fits = true;
-                if (gx + cw > COLS || gy + ch > ROWS) { fits = false; }
+                if (gx + cw > COLS || gy + ch > currentRows) { fits = false; }
                 else {
                   for (var dy = 0; dy < ch && fits; dy++)
                     for (var dx = 0; dx < cw && fits; dx++)
@@ -741,7 +775,7 @@
       function getGapCells() {
         var occupied = getOccupiedCells();
         var lastLinear = -1;
-        for (var gy = 0; gy < ROWS; gy++) {
+        for (var gy = 0; gy < currentRows; gy++) {
           for (var gx = 0; gx < COLS; gx++) {
             if (occupied[gx + ',' + gy]) lastLinear = gy * COLS + gx;
           }
@@ -759,7 +793,7 @@
         var layerRect = gridEl.getBoundingClientRect();
         var margin = 8;
         var colW = layerRect.width / COLS;
-        var rowH = layerRect.height / ROWS;
+        var rowH = layerRect.height / currentRows;
         return {
           left:   layerRect.left + gx * colW + margin,
           top:    layerRect.top  + gy * rowH + margin,
@@ -830,6 +864,7 @@
         liveGrid.removeAll();
         cardOrder = [];
         templateIdx = 0;
+        updateGridSize(DEFAULT_ROWS);
       });
 
       // --- Unified pointer handling ---
@@ -894,9 +929,9 @@
             const rowDelta = Math.round(dy / rowHeight);
             let newH;
             if (resizeEdge === 'bottom') {
-              newH = Math.max(1, Math.min(ROWS, resizeStartH + rowDelta));
+              newH = Math.max(1, resizeStartH + rowDelta);
             } else {
-              newH = Math.max(1, Math.min(ROWS, resizeStartH - rowDelta));
+              newH = Math.max(1, resizeStartH - rowDelta);
             }
             resizeItem.setAttribute('gs-h', newH);
           }
