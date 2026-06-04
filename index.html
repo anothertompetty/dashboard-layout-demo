@@ -267,6 +267,16 @@
       background: rgba(21, 93, 252, 0.03);
     }
 
+    .gap-drop-indicator {
+      position: fixed;
+      pointer-events: none;
+      z-index: 5;
+      border-radius: var(--radius-lg, 9px);
+      border: 1.5px dashed var(--color-blue-600, #155DFC);
+      background: rgba(21, 93, 252, 0.03);
+      display: none;
+    }
+
     .drag-ghost {
       position: fixed;
       pointer-events: none;
@@ -401,8 +411,10 @@
 
     (function() {
       const gridEl = document.querySelector('.grid-live');
+      const gridFrame = document.querySelector('.grid-frame');
       const COLS = 4;
       const DRAG_THRESHOLD = 5;
+      const ROWS = 3;
 
       let cardOrder = [];
 
@@ -488,6 +500,7 @@
       // --- Drag-to-reorder logic ---
       let dragState = null; // { item, startX, startY, ghost, active, pointerId }
       let currentDropTarget = null;
+      let currentGapTarget = null;
 
       function createGhost(item, x, y) {
         const rect = item.querySelector('.grid-stack-item-content').getBoundingClientRect();
@@ -528,6 +541,91 @@
           currentDropTarget.classList.remove('drop-target');
           currentDropTarget = null;
         }
+      }
+
+      // --- Gap-cell drop support ---
+      function getGapCells() {
+        // Recompute positions using the same algorithm as reflowCards
+        // instead of reading gs-x/gs-y attributes which GridStack may not update
+        var occupied = {};
+        var rx = 0, ry = 0;
+        for (var ci = 0; ci < cardOrder.length; ci++) {
+          var cw = parseInt(cardOrder[ci].getAttribute('gs-w')) || 1;
+          if (rx + cw > COLS) { rx = 0; ry += 1; }
+          for (var k = 0; k < cw; k++) occupied[(rx + k) + ',' + ry] = true;
+          rx += cw;
+        }
+        var lastLinear = -1;
+        for (var gy = 0; gy < ROWS; gy++) {
+          for (var gx = 0; gx < COLS; gx++) {
+            if (occupied[gx + ',' + gy]) lastLinear = gy * COLS + gx;
+          }
+        }
+        var gaps = [];
+        for (var lin = 0; lin <= lastLinear; lin++) {
+          var gx2 = lin % COLS;
+          var gy2 = Math.floor(lin / COLS);
+          if (!occupied[gx2 + ',' + gy2]) gaps.push({ x: gx2, y: gy2 });
+        }
+        return gaps;
+      }
+
+      function getCellRect(gx, gy) {
+        var layerRect = gridEl.getBoundingClientRect();
+        var margin = 8;
+        var colW = layerRect.width / COLS;
+        var rowH = layerRect.height / ROWS;
+        return {
+          left:   layerRect.left + gx * colW + margin,
+          top:    layerRect.top  + gy * rowH + margin,
+          right:  layerRect.left + (gx + 1) * colW - margin,
+          bottom: layerRect.top  + (gy + 1) * rowH - margin,
+          width:  colW - margin * 2,
+          height: rowH - margin * 2
+        };
+      }
+
+      function getGapCellFromPoint(clientX, clientY) {
+        var gaps = getGapCells();
+        for (var i = 0; i < gaps.length; i++) {
+          var rect = getCellRect(gaps[i].x, gaps[i].y);
+          if (clientX >= rect.left && clientX <= rect.right &&
+              clientY >= rect.top && clientY <= rect.bottom) {
+            return gaps[i];
+          }
+        }
+        return null;
+      }
+
+      function getInsertionIndexForGap(gapX, gapY, draggedItem) {
+        var gapLinear = gapY * COLS + gapX;
+        var filtered = cardOrder.filter(function(c) { return c !== draggedItem; });
+        var x = 0, y = 0;
+        for (var i = 0; i < filtered.length; i++) {
+          var w = parseInt(filtered[i].getAttribute('gs-w')) || 1;
+          if (x + w > COLS) { x = 0; y += 1; }
+          if (y * COLS + x >= gapLinear) return i;
+          x += w;
+        }
+        return filtered.length;
+      }
+
+      var gapIndicator = document.createElement('div');
+      gapIndicator.className = 'gap-drop-indicator';
+      document.body.appendChild(gapIndicator);
+
+      function showGapIndicator(gx, gy) {
+        var rect = getCellRect(gx, gy);
+        gapIndicator.style.display = 'block';
+        gapIndicator.style.left = rect.left + 'px';
+        gapIndicator.style.top = rect.top + 'px';
+        gapIndicator.style.width = rect.width + 'px';
+        gapIndicator.style.height = rect.height + 'px';
+      }
+
+      function hideGapIndicator() {
+        gapIndicator.style.display = 'none';
+        currentGapTarget = null;
       }
 
       // --- Close button ---
@@ -618,13 +716,23 @@
 
         moveGhost(dragState.ghost, e.clientX, e.clientY);
 
-        // Determine drop target
+        // Determine drop target (card or gap cell)
         const target = getDropTarget(e.clientX, e.clientY, dragState.item);
-        if (target !== currentDropTarget) {
-          clearDropTarget();
-          if (target) {
+        if (target) {
+          if (target !== currentDropTarget) {
+            clearDropTarget();
             target.classList.add('drop-target');
             currentDropTarget = target;
+          }
+          hideGapIndicator();
+        } else {
+          clearDropTarget();
+          const gap = getGapCellFromPoint(e.clientX, e.clientY);
+          if (gap) {
+            showGapIndicator(gap.x, gap.y);
+            currentGapTarget = gap;
+          } else {
+            hideGapIndicator();
           }
         }
       });
@@ -646,16 +754,24 @@
           removeGhost(dragState.ghost);
           dragState.item.classList.remove('dragging');
 
-          // Reorder if dropped on a valid card
           if (currentDropTarget) {
             const fromIdx = cardOrder.indexOf(dragState.item);
             const toIdx = cardOrder.indexOf(currentDropTarget);
             cardOrder.splice(fromIdx, 1);
             cardOrder.splice(toIdx, 0, dragState.item);
             reflowCards();
+          } else if (currentGapTarget) {
+            const insertIdx = getInsertionIndexForGap(
+              currentGapTarget.x, currentGapTarget.y, dragState.item
+            );
+            const fromIdx = cardOrder.indexOf(dragState.item);
+            cardOrder.splice(fromIdx, 1);
+            cardOrder.splice(insertIdx, 0, dragState.item);
+            reflowCards();
           }
 
           clearDropTarget();
+          hideGapIndicator();
         }
 
         dragState = null;
