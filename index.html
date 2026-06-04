@@ -211,16 +211,20 @@
       font-feature-settings: 'lnum' 1, 'tnum' 1;
     }
 
-    /* Side resize edge zones */
+    /* Side resize edge zones (horizontal) */
     .resize-edge {
       position: absolute;
+      z-index: 10;
+      opacity: 0;
+      transition: opacity 0.15s ease;
+    }
+
+    .resize-edge-left,
+    .resize-edge-right {
       top: 0;
       bottom: 0;
       width: 12px;
       cursor: col-resize;
-      z-index: 10;
-      opacity: 0;
-      transition: opacity 0.15s ease;
     }
 
     .resize-edge-left {
@@ -231,11 +235,35 @@
       right: -6px;
     }
 
+    /* Vertical resize edge zones */
+    .resize-edge-top,
+    .resize-edge-bottom {
+      left: 0;
+      right: 0;
+      height: 12px;
+      cursor: row-resize;
+      display: none;
+    }
+
+    .resize-edge-top {
+      top: -6px;
+    }
+
+    .resize-edge-bottom {
+      bottom: -6px;
+    }
+
+    .vertical-resize-enabled .resize-edge-top,
+    .vertical-resize-enabled .resize-edge-bottom {
+      display: block;
+    }
+
     .grid-stack-item-content:hover > .resize-edge {
       opacity: 1;
     }
 
-    .resize-edge::after {
+    .resize-edge-left::after,
+    .resize-edge-right::after {
       content: '';
       position: absolute;
       top: 50%;
@@ -243,6 +271,20 @@
       transform: translate(-50%, -50%);
       width: 4px;
       height: 32px;
+      border-radius: 2px;
+      background: var(--color-blue-600, #155DFC);
+      transition: opacity 0.15s ease;
+    }
+
+    .resize-edge-top::after,
+    .resize-edge-bottom::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 32px;
+      height: 4px;
       border-radius: 2px;
       background: var(--color-blue-600, #155DFC);
       transition: opacity 0.15s ease;
@@ -325,6 +367,25 @@
       height: 12px;
     }
 
+    .checkbox-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--color-neutral-500, #737373);
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .checkbox-label input[type="checkbox"] {
+      width: 14px;
+      height: 14px;
+      margin: 0;
+      accent-color: var(--color-blue-600, #155DFC);
+      cursor: pointer;
+    }
+
     @media (max-width: 720px) {
       body {
         padding: 24px;
@@ -345,7 +406,12 @@
         <h1 class="title">Dashboard layout demo</h1>
         <p class="meta">Add cards to the grid, resize them, and reorder them.</p>
       </div>
-      <div style="display: flex; gap: 8px;">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <label class="checkbox-label">
+          <input type="checkbox" id="verticalResize" />
+          Vertical resize
+        </label>
+        <div style="width: 1px; height: 16px; background: var(--color-neutral-200, #e5e5e5);"></div>
         <button class="btn-reset" id="addNarrow" aria-label="Add narrow card">
           <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="7" y1="3" x2="7" y2="11"/><line x1="3" y1="7" x2="11" y2="7"/></svg>
           Add narrow
@@ -412,9 +478,26 @@
     (function() {
       const gridEl = document.querySelector('.grid-live');
       const gridFrame = document.querySelector('.grid-frame');
+      const verticalResizeCheckbox = document.getElementById('verticalResize');
       const COLS = 4;
       const DRAG_THRESHOLD = 5;
       const ROWS = 3;
+
+      let verticalResizeEnabled = false;
+
+      verticalResizeCheckbox.addEventListener('change', function() {
+        verticalResizeEnabled = this.checked;
+        if (verticalResizeEnabled) {
+          gridEl.classList.add('vertical-resize-enabled');
+        } else {
+          gridEl.classList.remove('vertical-resize-enabled');
+          // Reset all cards to h=1 when disabling
+          for (const item of cardOrder) {
+            item.setAttribute('gs-h', '1');
+          }
+          reflowCards();
+        }
+      });
 
       let cardOrder = [];
 
@@ -444,7 +527,9 @@
           '<p class="card-insight-metric" style="color: ' + t.color + ';">' + t.metric + '</p>' +
         '</div>' +
         '<div class="resize-edge resize-edge-left" data-resize="left"></div>' +
-        '<div class="resize-edge resize-edge-right" data-resize="right"></div>';
+        '<div class="resize-edge resize-edge-right" data-resize="right"></div>' +
+        '<div class="resize-edge resize-edge-top" data-resize="top"></div>' +
+        '<div class="resize-edge resize-edge-bottom" data-resize="bottom"></div>';
       }
 
       function addCard(w) {
@@ -467,6 +552,10 @@
       document.getElementById('addWide').addEventListener('click', function() { addCard(2); });
 
       function reflowCards() {
+        if (verticalResizeEnabled) {
+          reflowCards2D();
+          return;
+        }
         let x = 0;
         let y = 0;
 
@@ -477,8 +566,57 @@
             x = 0;
             y += 1;
           }
-          liveGrid.update(item, { x: x, y: y, w: w });
+          liveGrid.update(item, { x: x, y: y, w: w, h: 1 });
           x += w;
+        }
+        liveGrid.batchUpdate(false);
+      }
+
+      function reflowCards2D() {
+        // 2D grid occupancy map
+        var grid = [];
+        for (var r = 0; r < ROWS; r++) {
+          grid[r] = [];
+          for (var c = 0; c < COLS; c++) grid[r][c] = false;
+        }
+
+        function fits(gx, gy, w, h) {
+          if (gx + w > COLS || gy + h > ROWS) return false;
+          for (var dy = 0; dy < h; dy++) {
+            for (var dx = 0; dx < w; dx++) {
+              if (grid[gy + dy][gx + dx]) return false;
+            }
+          }
+          return true;
+        }
+
+        function place(gx, gy, w, h) {
+          for (var dy = 0; dy < h; dy++) {
+            for (var dx = 0; dx < w; dx++) {
+              grid[gy + dy][gx + dx] = true;
+            }
+          }
+        }
+
+        liveGrid.batchUpdate();
+        for (const item of cardOrder) {
+          var w = parseInt(item.getAttribute('gs-w')) || 1;
+          var h = parseInt(item.getAttribute('gs-h')) || 1;
+          w = Math.min(w, COLS);
+          h = Math.min(h, ROWS);
+          var placed = false;
+          for (var gy = 0; gy < ROWS && !placed; gy++) {
+            for (var gx = 0; gx < COLS && !placed; gx++) {
+              if (fits(gx, gy, w, h)) {
+                liveGrid.update(item, { x: gx, y: gy, w: w, h: h });
+                place(gx, gy, w, h);
+                placed = true;
+              }
+            }
+          }
+          if (!placed) {
+            liveGrid.update(item, { x: 0, y: 0, w: w, h: h });
+          }
         }
         liveGrid.batchUpdate(false);
       }
@@ -490,11 +628,18 @@
       let resizeEdge = null;
       let resizeItem = null;
       let resizeStartX = 0;
+      let resizeStartY = 0;
       let resizeStartW = 0;
+      let resizeStartH = 0;
       let colWidth = 0;
+      let rowHeight = 0;
 
       function getColWidth() {
         return gridEl.offsetWidth / COLS;
+      }
+
+      function getRowHeight() {
+        return gridEl.offsetHeight / ROWS;
       }
 
       // --- Drag-to-reorder logic ---
@@ -544,17 +689,57 @@
       }
 
       // --- Gap-cell drop support ---
-      function getGapCells() {
-        // Recompute positions using the same algorithm as reflowCards
-        // instead of reading gs-x/gs-y attributes which GridStack may not update
+      function getOccupiedCells() {
         var occupied = {};
-        var rx = 0, ry = 0;
-        for (var ci = 0; ci < cardOrder.length; ci++) {
-          var cw = parseInt(cardOrder[ci].getAttribute('gs-w')) || 1;
-          if (rx + cw > COLS) { rx = 0; ry += 1; }
-          for (var k = 0; k < cw; k++) occupied[(rx + k) + ',' + ry] = true;
-          rx += cw;
+        if (verticalResizeEnabled) {
+          // Use 2D packing to compute positions
+          var grid = [];
+          for (var r = 0; r < ROWS; r++) {
+            grid[r] = [];
+            for (var c = 0; c < COLS; c++) grid[r][c] = false;
+          }
+          for (var ci = 0; ci < cardOrder.length; ci++) {
+            var cw = parseInt(cardOrder[ci].getAttribute('gs-w')) || 1;
+            var ch = parseInt(cardOrder[ci].getAttribute('gs-h')) || 1;
+            cw = Math.min(cw, COLS);
+            ch = Math.min(ch, ROWS);
+            for (var gy = 0; gy < ROWS; gy++) {
+              var found = false;
+              for (var gx = 0; gx < COLS; gx++) {
+                var fits = true;
+                if (gx + cw > COLS || gy + ch > ROWS) { fits = false; }
+                else {
+                  for (var dy = 0; dy < ch && fits; dy++)
+                    for (var dx = 0; dx < cw && fits; dx++)
+                      if (grid[gy + dy][gx + dx]) fits = false;
+                }
+                if (fits) {
+                  for (var dy2 = 0; dy2 < ch; dy2++)
+                    for (var dx2 = 0; dx2 < cw; dx2++) {
+                      grid[gy + dy2][gx + dx2] = true;
+                      occupied[(gx + dx2) + ',' + (gy + dy2)] = true;
+                    }
+                  found = true;
+                  break;
+                }
+              }
+              if (found) break;
+            }
+          }
+        } else {
+          var rx = 0, ry = 0;
+          for (var ci = 0; ci < cardOrder.length; ci++) {
+            var cw = parseInt(cardOrder[ci].getAttribute('gs-w')) || 1;
+            if (rx + cw > COLS) { rx = 0; ry += 1; }
+            for (var k = 0; k < cw; k++) occupied[(rx + k) + ',' + ry] = true;
+            rx += cw;
+          }
         }
+        return occupied;
+      }
+
+      function getGapCells() {
+        var occupied = getOccupiedCells();
         var lastLinear = -1;
         for (var gy = 0; gy < ROWS; gy++) {
           for (var gx = 0; gx < COLS; gx++) {
@@ -654,15 +839,21 @@
         // Resize edge takes priority
         const edge = e.target.closest('.resize-edge');
         if (edge) {
+          const dir = edge.dataset.resize;
+          if ((dir === 'top' || dir === 'bottom') && !verticalResizeEnabled) return;
+
           e.preventDefault();
           e.stopPropagation();
           edge.setPointerCapture(e.pointerId);
 
           resizeItem = edge.closest('.grid-stack-item');
-          resizeEdge = edge.dataset.resize;
+          resizeEdge = dir;
           resizeStartX = e.clientX;
+          resizeStartY = e.clientY;
           resizeStartW = parseInt(resizeItem.getAttribute('gs-w')) || 1;
+          resizeStartH = parseInt(resizeItem.getAttribute('gs-h')) || 1;
           colWidth = getColWidth();
+          rowHeight = getRowHeight();
           resizing = true;
 
           resizeItem.classList.add('resizing');
@@ -688,15 +879,27 @@
         // Resize
         if (resizing) {
           e.preventDefault();
-          const dx = e.clientX - resizeStartX;
-          const colDelta = Math.round(dx / colWidth);
-          let newW;
-          if (resizeEdge === 'right') {
-            newW = Math.max(1, Math.min(COLS, resizeStartW + colDelta));
+          if (resizeEdge === 'left' || resizeEdge === 'right') {
+            const dx = e.clientX - resizeStartX;
+            const colDelta = Math.round(dx / colWidth);
+            let newW;
+            if (resizeEdge === 'right') {
+              newW = Math.max(1, Math.min(COLS, resizeStartW + colDelta));
+            } else {
+              newW = Math.max(1, Math.min(COLS, resizeStartW - colDelta));
+            }
+            resizeItem.setAttribute('gs-w', newW);
           } else {
-            newW = Math.max(1, Math.min(COLS, resizeStartW - colDelta));
+            const dy = e.clientY - resizeStartY;
+            const rowDelta = Math.round(dy / rowHeight);
+            let newH;
+            if (resizeEdge === 'bottom') {
+              newH = Math.max(1, Math.min(ROWS, resizeStartH + rowDelta));
+            } else {
+              newH = Math.max(1, Math.min(ROWS, resizeStartH - rowDelta));
+            }
+            resizeItem.setAttribute('gs-h', newH);
           }
-          resizeItem.setAttribute('gs-w', newW);
           reflowCards();
           return;
         }
